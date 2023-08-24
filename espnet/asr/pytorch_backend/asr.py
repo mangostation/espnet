@@ -729,7 +729,7 @@ def train(args):
         min_batch_size=1,
         shortest_first=True,
         count="frame",
-        batch_frames_in=40000,
+        batch_frames_in=10000,
     )
     valid = make_batchset(
         valid_json,
@@ -737,7 +737,7 @@ def train(args):
         min_batch_size=1,
         shortest_first=True,
         count="frame",
-        batch_frames_in=40000,
+        batch_frames_in=10000,
     )
 
     load_tr = LoadInputsAndTargets(

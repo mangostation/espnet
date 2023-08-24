@@ -41,7 +41,7 @@ class NoamOpt(object):
             step = self._step
         return (
             256 ** (-0.5)
-            * min(step ** (-0.5), step * self.warmup ** (-1.5)) * 0.1
+            * min(step ** (-0.5), step * self.warmup ** (-1.5))
         )
 
     def zero_grad(self):

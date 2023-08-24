@@ -1,8 +1,8 @@
 import json
 import os,sys
 
-json_path = '/work/m11115119/espnet/egs/aishell/asr1/dump/train/deltafalse/data_bert.json'
-json_path1 = '/work/m11115119/espnet/egs/aishell/asr1/dump/train/deltafalse/data_bert_tmp.json'
+json_path = '/mnt/disk3/m11115119/espnet/egs/aishell/asr1/dump/test/deltafalse/data_bert.json'
+json_path1 = '/mnt/disk3/m11115119/espnet/egs/aishell/asr1/dump/test/deltafalse/data_bert_tmp.json'
 
 
 with open(json_path,'r',encoding='utf-8') as f:
@@ -22,7 +22,7 @@ with open(json_path,'r',encoding='utf-8') as f:
                                 tmp = params[utt_key][ted_key][input_key][index][a]
                                 print(params[utt_key][ted_key][input_key][index][a])
                                 print(tmp)
-                                tmp2 = tmp.replace('/data/espnet/egs/aishell/asr1/dump', '/tmp/dump')
+                                tmp2 = tmp.replace('/data/espnet/egs/aishell/asr1/dump', '/mnt/disk3/m11115119/espnet/egs/aishell/asr1/dump')
                                 print(tmp2)
                                 params[utt_key][ted_key][input_key][index][a]=tmp2
                                 print(params[utt_key][ted_key][input_key][index][a])
