@@ -28,6 +28,7 @@ from espnet.asr.asr_utils import (
     CompareValueTrigger,
     adadelta_eps_decay,
     add_results_to_json,
+    add_results_to_json_bert,
     format_mulenc_args,
     get_model_conf,
     plot_spectrogram,
@@ -40,6 +41,7 @@ from espnet.asr.asr_utils import (
 from espnet.asr.pytorch_backend.asr_init import (
     freeze_modules,
     load_trained_model,
+    load_trained_model_bert,
     load_trained_modules,
 )
 from espnet.nets.asr_interface import ASRInterface
@@ -537,7 +539,15 @@ def train(args):
         logging.info("Multitask learning mode")
 
     if (args.enc_init is not None or args.dec_init is not None) and args.num_encs == 1:
-        model = load_trained_modules(idim_list[0], odim, args)
+        #model = load_trained_modules(idim_list[0], odim, args)
+        model_class = dynamic_import(args.model_module)
+        model = model_class(
+            idim_list[0] if args.num_encs == 1 else idim_list, odim, args
+        )
+        model.encoder, train_args = load_trained_model(args.enc_init)
+        model.encoder.classifier = None
+        #print(model.encoder)
+        #model.conv_subsampling_factor = model.encoder.conv_subsampling_factor
     else:
         model_class = dynamic_import(args.model_module)
         model = model_class(
@@ -638,7 +648,7 @@ def train(args):
     elif args.opt == "adam":
         optimizer = torch.optim.Adam(model_params, weight_decay=args.weight_decay)
     elif args.opt == "noam":
-        from espnet.nets.pytorch_backend.transformer.optimizer import get_std_opt
+        from espnet.nets.pytorch_backend.LASO.optimizer import get_std_opt
 
         if "transducer" in mtl_mode:
             if args.noam_adim > 0:
@@ -715,34 +725,19 @@ def train(args):
         min_batch_size = args.ngpu if args.ngpu > 1 else 1
     train = make_batchset(
         train_json,
-        args.batch_size,
-        args.maxlen_in,
-        args.maxlen_out,
-        args.minibatches,
-        min_batch_size=min_batch_size,
-        shortest_first=use_sortagrad,
-        count=args.batch_count,
-        batch_bins=args.batch_bins,
-        batch_frames_in=args.batch_frames_in,
-        batch_frames_out=args.batch_frames_out,
-        batch_frames_inout=args.batch_frames_inout,
-        iaxis=0,
-        oaxis=0,
+        batch_size=1,
+        min_batch_size=1,
+        shortest_first=True,
+        count="frame",
+        batch_frames_in=40000,
     )
     valid = make_batchset(
         valid_json,
-        args.batch_size,
-        args.maxlen_in,
-        args.maxlen_out,
-        args.minibatches,
-        min_batch_size=min_batch_size,
-        count=args.batch_count,
-        batch_bins=args.batch_bins,
-        batch_frames_in=args.batch_frames_in,
-        batch_frames_out=args.batch_frames_out,
-        batch_frames_inout=args.batch_frames_inout,
-        iaxis=0,
-        oaxis=0,
+        batch_size=1,
+        min_batch_size=1,
+        shortest_first=True,
+        count="frame",
+        batch_frames_in=40000,
     )
 
     load_tr = LoadInputsAndTargets(
@@ -1174,6 +1169,10 @@ def train(args):
         check_early_stop(trainer, args.epochs)
 
 
+"""from transformers import BertTokenizer
+PRETRAINED_MODEL_NAME = "bert-base-chinese"
+tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)"""
+
 def recog(args):
     """Decode with the given args.
 
@@ -1182,7 +1181,10 @@ def recog(args):
 
     """
     set_deterministic_pytorch(args)
-    model, train_args = load_trained_model(args.model, training=False)
+    if args.use_bert == True:
+        model, train_args = load_trained_model_bert(args, args.model, training=False)
+    else:
+        model, train_args = load_trained_model(args.model, training=False)
     assert isinstance(model, ASRInterface)
     model.recog_args = args
 
@@ -1386,9 +1388,18 @@ def recog(args):
                     nbest_hyps = model.recognize(
                         feat, args, train_args.char_list, rnnlm
                     )
-                new_js[name] = add_results_to_json(
-                    js[name], nbest_hyps, train_args.char_list
-                )
+                if args.use_bert == True:
+                    new_js[name] = add_results_to_json_bert(
+                        js[name], nbest_hyps
+                    )
+                    """print(tokenizer.vocab.keys()["odict_keys"])
+                    new_js[name] = add_results_to_json(
+                        js[name], nbest_hyps, tokenizer.vocab.keys()
+                    )"""
+                else:
+                    new_js[name] = add_results_to_json(
+                        js[name], nbest_hyps, train_args.char_list
+                    )
 
     else:
 

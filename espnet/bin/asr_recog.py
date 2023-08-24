@@ -41,6 +41,13 @@ def get_parser():
         "in `--config` and `--config2`",
     )
 
+    parser.add_argument(
+        "--use-bert",
+        type=bool,
+        default=False,
+        help="Apply dynamic quantization to ASR model.",
+    )
+
     parser.add_argument("--ngpu", type=int, default=0, help="Number of GPUs")
     parser.add_argument(
         "--dtype",
@@ -286,6 +293,12 @@ def get_parser():
         separated by a comma. E.g.: --quantize-config=[Linear,LSTM,GRU].
         Each specified module should be an attribute of 'torch.nn', e.g.:
         torch.nn.Linear, torch.nn.LSTM, torch.nn.GRU, ...""",
+    )
+    parser.add_argument(
+        "--enc-init",
+        type=str,
+        default="qint8",
+        help="enc",
     )
     parser.add_argument(
         "--quantize-dtype",

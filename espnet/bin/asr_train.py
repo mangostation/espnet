@@ -611,6 +611,7 @@ def main(cmd_args):
     logging.info("python path = " + os.environ.get("PYTHONPATH", "(None)"))
 
     # set random seed
+    print(args.seed)
     logging.info("random seed = %d" % args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
