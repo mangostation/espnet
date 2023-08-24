@@ -61,7 +61,7 @@ def main():
         ]
     else:
         last = sorted(args.snapshots, key=os.path.getmtime)
-        last = last[-args.num :]
+        last = last[args.max_epoch-args.num : args.max_epoch]
     print("average over", last)
     avg = None
 
