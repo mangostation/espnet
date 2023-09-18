@@ -161,7 +161,7 @@ class E2E(ASRInterface, torch.nn.Module):
         self.reporter = Reporter()
         # PRETRAINED_MODEL_NAME = "bert-base-chinese"
         # ch_bert = BertModel.from_pretrained(PRETRAINED_MODEL_NAME)
-        ch_bert = BertModel.from_pretrained("/work/m11115119/espnet/egs/aishell/asr1/bert_pretrain/bert_permutation/checkpoint-10000")
+        ch_bert = BertModel.from_pretrained("/mnt/disk1/m11115119/espnet/egs/aishell/asr1/bert_pretrain/bert_permutation/checkpoint-10000")
         BERTWordEmbed = ch_bert.embeddings.word_embeddings.state_dict()
         self.classifier = torch.nn.Linear(768, odim, bias=False)
         self.classifier.load_state_dict(BERTWordEmbed)

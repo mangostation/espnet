@@ -121,7 +121,7 @@ class E2E(ASRInterface, torch.nn.Module):
         self.subsample = get_subsample(args, mode="asr", arch="transformer")
         self.reporter = Reporter()
         #PRETRAINED_MODEL_NAME = "bert-base-chinese"
-        bertmodel = BertForMaskedLMForPermutation.from_pretrained("/work/m11115119/espnet/egs/aishell/asr1/bert_pretrain/bert_permutation/checkpoint-10000")
+        bertmodel = BertForMaskedLMForPermutation.from_pretrained("/mnt/disk1/m11115119/espnet/egs/aishell/asr1/bert_pretrain/bert_permutation/checkpoint-10000")
         self.decoder = bertmodel
 
         self.reset_parameters(args)
@@ -137,7 +137,7 @@ class E2E(ASRInterface, torch.nn.Module):
         else:
             self.error_calculator = None
         self.rnnlm = None
-        self.mix = torch.nn.Linear(768*2, 768)
+        self.concat_head = torch.nn.Linear(768*2, 768)
         
 
         
@@ -255,7 +255,7 @@ class E2E(ASRInterface, torch.nn.Module):
                 else:
                     arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
                     predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
-                hidden_states = concat_head(torch.cat([hidden_states, predicted_embeds], dim=-1))
+                hidden_states = self.concat_head(torch.cat([hidden_states, predicted_embeds], dim=-1))
 
 
             layer_head_mask = head_mask[i] if head_mask is not None else None
@@ -347,8 +347,8 @@ class E2E(ASRInterface, torch.nn.Module):
             # maskn1 = target_60 == -1
             # target_60[maskn1] = 0
             # ys_out_pad = target_60
-
-            loss_att = self.criterion(pred_pad, ys_out_pad)
+            # print(pred_pad.shape)
+            loss_att = self.criterion(pred_pad.view(-1, 21128), ys_out_pad.view(-1))
             self.acc = 0
             # self.acc = th_accuracy(
             #     pred_pad.view(-1, self.odim), ys_pad, ignore_label=self.ignore_id
