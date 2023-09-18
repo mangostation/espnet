@@ -455,7 +455,14 @@ class E2E(ASRInterface, torch.nn.Module):
         :rtype: torch.Tensor
         """
         self.eval()
-        return self.encoder.encode(x)
+        x = torch.as_tensor(x).unsqueeze(0).cuda()
+        enc_output, *_ = self.encoder.encoder(x, None)
+        pe = torch.zeros((enc_output.shape[0], 60, enc_output.shape[2])).to(enc_output.device)
+        pe = self.encoder.pos_enc(pe)
+        pds_output, *_ = self.encoder.pds(pe, enc_output, None)
+        dec_output, *_ = self.encoder.decoder(pds_output, None)
+        return dec_output
+        # return self.encoder.encode(torch.from_numpy(x).cuda())
 
     def recognize(self, x, recog_args, char_list=None, rnnlm=None, use_jit=False):
         """Recognize input speech.
@@ -467,34 +474,14 @@ class E2E(ASRInterface, torch.nn.Module):
         :return: N-best decoding results
         :rtype: list
         """
-        enc_output = self.encode(x).unsqueeze(0)
+        enc_output = self.encode(x)
         enc_output = self.decoder(inputs_embeds=enc_output)
-
-        if self.mtlalpha == 1.0:
-            recog_args.ctc_weight = 1.0
-            logging.info("Set to pure CTC decoding mode.")
-
-        if self.mtlalpha > 0 and recog_args.ctc_weight == 1.0:
-            from itertools import groupby
-
-            lpz = self.ctc.argmax(enc_output)
-            collapsed_indices = [x[0] for x in groupby(lpz[0])]
-            hyp = [x for x in filter(lambda x: x != self.blank, collapsed_indices)]
-            nbest_hyps = [{"score": 0.0, "yseq": [self.sos] + hyp}]
-            if recog_args.beam_size > 1:
-                raise NotImplementedError("Pure CTC beam search is not implemented.")
-            # TODO(hirofumi0810): Implement beam search
-            return nbest_hyps
-        elif self.mtlalpha > 0 and recog_args.ctc_weight > 0.0:
-            lpz = self.ctc.log_softmax(enc_output)
-            lpz = lpz.squeeze(0)
-        else:
-            lpz = None
-
+            
+        lpz = None
         #h = enc_output.squeeze(0)
         enc_output = enc_output.view(-1, self.odim)
-        #print(enc_output)
-        h = torch.argmax(torch.log_softmax(enc_output, dim=1),dim=1)
+        #print(enc_output)torch.log_softmax(enc_output, dim=1)
+        h = torch.argmax(enc_output ,dim=1)
         #print(h)
         #print(h)
         mask = h == 102
@@ -535,11 +522,16 @@ class E2E(ASRInterface, torch.nn.Module):
                 ctc_beam = min(lpz.shape[-1], int(beam * CTC_SCORING_RATIO))
             else:
                 ctc_beam = lpz.shape[-1]
-        print(ylen.ndim)
         if ylen.ndim == 0:
             hyp["yseq"] = h[:ylen].tolist()
         else:
-            hyp["yseq"] = h[:ylen[0]].tolist()
+            print(h)
+            if torch.sum(mask) == 0:
+                mask = h == 0
+                ylen = torch.nonzero(mask).squeeze()
+                hyp["yseq"] = h[:ylen[0]].tolist()
+            else:
+                hyp["yseq"] = h[:ylen[0]].tolist()
         hyps = [hyp]
         ended_hyps = []
 
