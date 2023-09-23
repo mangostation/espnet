@@ -11,7 +11,7 @@ backend=pytorch
 stage=5        # start from 0 if you need to start from data preparation
 stop_stage=5
 ngpu=1         # number of gpus ("0" uses cpu, otherwise use gpu)
-dec_ngpu=1
+dec_ngpu=0
 debugmode=1
 dumpdir=/mnt/disk1/m11115119/espnet/egs/aishell/asr1/dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -37,7 +37,7 @@ n_gram=
 # decoding parameter
 #recog_model=snapshot.ep.55
 n_average=10
-recog_model=model.last${n_average}.avg.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
+recog_model=snapshot.ep.100 # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # data
 data=/data/ASR_Corpus
@@ -131,7 +131,7 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     done
 fi
 
-dict=data/lang_1char/train_sp_units.txt
+dict=data/lang_1char/bert.txt
 echo "dictionary: ${dict}"
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
@@ -207,13 +207,14 @@ if [ -z ${tag} ]; then
 else
     expname=${train_set}_${backend}_${tag}
 fi
-expdir=exp/${expname}
+expdir=exp/${expname}_nocheat
 mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     echo "stage 4: Network Training"
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
         asr_train.py \
+        --enc-init /mnt/disk1/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_ELMERASR_pre_specaug/results/model.last10.avg.best \
         --config ${train_config} \
         --preprocess-conf ${preprocess_config} \
         --ngpu ${ngpu} \
@@ -228,30 +229,28 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         --resume ${resume} \
         --train-json ${feat_tr_dir}/data_bert_tmp.json \
         --valid-json ${feat_dt_dir}/data_bert_tmp.json \
-        --seed 777
+        --seed 78
 fi
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     echo "stage 5: Decoding"
     nj=32
     max_epoch=130
-    if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *conformer* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *maskctc* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *LASO* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *Bert* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *ELMER* ]] || \
-           [[ $(get_yaml.py ${train_config} etype) = custom ]] || \
-           [[ $(get_yaml.py ${train_config} dtype) = custom ]]; then
-        recog_model=model.last${n_average}.avg.best
-        average_checkpoints.py --backend ${backend} \
-        		       --snapshots ${expdir}/results/snapshot.ep.* \
-        		       --out ${expdir}/results/${recog_model} \
-        		       --num ${n_average} \
-                       --max-epoch ${max_epoch}
-    fi
+    # if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *conformer* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *maskctc* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *LASO* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *ELMER* ]] || \
+    #        [[ $(get_yaml.py ${train_config} etype) = custom ]] || \
+    #        [[ $(get_yaml.py ${train_config} dtype) = custom ]]; then
+    #     recog_model=model.last${n_average}.avg.best
+    #     average_checkpoints.py --backend ${backend} \
+    #     		       --snapshots ${expdir}/results/snapshot.ep.* \
+    #     		       --out ${expdir}/results/${recog_model} \
+    #     		       --num ${n_average} \
+    #                    --max-epoch ${max_epoch}
+    # fi
 
-    exit
 
     if [[ $(get_yaml.py ${train_config} model-module) = *transducer* ]]; then
         echo "[info]: transducer model does not support '--api v2'" \
@@ -276,11 +275,11 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
         splitjson.py --parts ${nj} ${feat_recog_dir}/data_bert_tmp.json
 
         #### use CPU for decoding
-        ngpu=1
+        ngpu=0
 
         ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
             asr_recog.py \
-            --enc-init /work/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_BertASR_pre_specaug/results/model.last10.avg.best \
+            --enc-init /mnt/disk1/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_ELMERASR_pre_specaug/results/model.last10.avg.best \
             --config ${decode_config} \
             --ngpu ${ngpu} \
             --backend ${backend} \

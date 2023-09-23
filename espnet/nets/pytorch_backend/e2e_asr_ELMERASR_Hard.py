@@ -199,6 +199,9 @@ class E2E(ASRInterface, torch.nn.Module):
         # )
 
         #in bert model
+
+        exit_logits = torch.full((enc_output.size(0), 60, 21128), -1).to(enc_output.device)
+
         inputs_embeds = enc_output
         input_shape = inputs_embeds.size()[:-1]
 
@@ -239,23 +242,23 @@ class E2E(ASRInterface, torch.nn.Module):
 
         for i, layer_module in enumerate(self.decoder.bert.encoder.layer):
 
-            if i > 0:
+            # if i > 0:
                 
-                # intermediate_logits = lm_head(hidden_states)  # using h_n to predict p_n
-                # predicted_samples = intermediate_logits.argmax(dim=-1)
-                arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
-                # predicted_embeds = self.embed_tokens(predicted_samples)
-                predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
-                if False:
-                    # label_embeds = self.embed_tokens(labels)
-                    label_embeds = self.decoder.bert.embeddings(input_ids=ys_out_pad)
-                    probability = torch.ones(ys_out_pad.size()) * 0.3
-                    control = torch.bernoulli(probability).unsqueeze(-1).to(ys_out_pad.device)
-                    predicted_embeds = control * label_embeds + (1 - control) * predicted_embeds
-                else:
-                    arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
-                    predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
-                hidden_states = self.concat_head(torch.cat([hidden_states, predicted_embeds], dim=-1))
+            #     # intermediate_logits = lm_head(hidden_states)  # using h_n to predict p_n
+            #     # predicted_samples = intermediate_logits.argmax(dim=-1)
+            #     arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
+            #     # predicted_embeds = self.embed_tokens(predicted_samples)
+            #     predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
+            #     if False:
+            #         # label_embeds = self.embed_tokens(labels)
+            #         label_embeds = self.decoder.bert.embeddings(input_ids=ys_out_pad)
+            #         probability = torch.ones(ys_out_pad.size()) * 0.3
+            #         control = torch.bernoulli(probability).unsqueeze(-1).to(ys_out_pad.device)
+            #         predicted_embeds = control * label_embeds + (1 - control) * predicted_embeds
+            #     else:
+            #         arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
+            #         predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
+            #     hidden_states = self.concat_head(torch.cat([hidden_states, predicted_embeds], dim=-1))
 
 
             layer_head_mask = head_mask[i] if head_mask is not None else None
@@ -271,6 +274,30 @@ class E2E(ASRInterface, torch.nn.Module):
             )
 
             hidden_states = layer_outputs[0]
+
+            if i<11:
+                # whether a word exit in the current layer, True: exit, False: not exit
+                # if True, copy the current hidden state to the cache (used in later layers)
+                soft_result = torch.softmax(self.decoder.cls(hidden_states),dim=-1)
+                entro = torch.special.entr(soft_result)
+                exited_signal = (torch.lt(torch.sum(entro, dim=-1), 0.5)).unsqueeze(-1)
+
+                # print(exited_signal.shape)
+                # print(arg_result.shape)
+                # print(exit_logits.shape)
+
+                exit_hidden_states = torch.where(exited_signal, hidden_states, exit_hidden_states)
+                exit_logits = torch.where(exited_signal, soft_result, exit_logits)
+
+                # only copy hidden states to the layer higher than the exit layer
+                copy_signal = torch.ge(exit_logits, 0).unsqueeze(-1)
+                hidden_states = torch.where(copy_signal, exit_hidden_states.detach(), hidden_states)
+            else:
+                soft_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
+                exited_signal = torch.lt(exit_logits, 0).unsqueeze(-1)
+
+                exit_logits = torch.where(exited_signal, soft_result, exit_logits)
+
 
             # hidden_states = self.mix(torch.cat((self.embed(self.argcon(hidden_states)), hidden_states), -1))
 
@@ -298,43 +325,43 @@ class E2E(ASRInterface, torch.nn.Module):
             #     copy_signal = torch.le(exit_layers, i).unsqueeze(-1)
             #     hidden_states = torch.where(copy_signal, exit_hidden_states.detach(), hidden_states)
 
-        encoder_outputs = BaseModelOutputWithPastAndCrossAttentions(
-            last_hidden_state=hidden_states,
-            past_key_values=None,
-            hidden_states=None,
-            attentions=None,
-            cross_attentions=None,
-        )
+        # encoder_outputs = BaseModelOutputWithPastAndCrossAttentions(
+        #     last_hidden_state=hidden_states,
+        #     past_key_values=None,
+        #     hidden_states=None,
+        #     attentions=None,
+        #     cross_attentions=None,
+        # )
 
-        #out bert encoder
-        sequence_output = encoder_outputs[0]
-        #pooled_output = self.decoder.bert.pooler(sequence_output)
+        # #out bert encoder
+        # sequence_output = encoder_outputs[0]
+        # #pooled_output = self.decoder.bert.pooler(sequence_output)
 
-        bert_output = BaseModelOutputWithPoolingAndCrossAttentions(
-            last_hidden_state=sequence_output,
-            pooler_output=None,
-            past_key_values=encoder_outputs.past_key_values,
-            hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
-            cross_attentions=encoder_outputs.cross_attentions,
-        )
+        # bert_output = BaseModelOutputWithPoolingAndCrossAttentions(
+        #     last_hidden_state=sequence_output,
+        #     pooler_output=None,
+        #     past_key_values=encoder_outputs.past_key_values,
+        #     hidden_states=encoder_outputs.hidden_states,
+        #     attentions=encoder_outputs.attentions,
+        #     cross_attentions=encoder_outputs.cross_attentions,
+        # )
 
-        #out bert model
+        # #out bert model
 
-        sequence_output = bert_output[0]
-        prediction_scores = self.decoder.cls(sequence_output)
+        # sequence_output = bert_output[0]
+        # prediction_scores = self.decoder.cls(sequence_output)
 
-        pred_pad = MaskedLMOutput(
-            loss=None,
-            logits=prediction_scores,
-            hidden_states=bert_output.hidden_states,
-            attentions=bert_output.attentions,
-        ).logits
+        # pred_pad = MaskedLMOutput(
+        #     loss=None,
+        #     logits=prediction_scores,
+        #     hidden_states=bert_output.hidden_states,
+        #     attentions=bert_output.attentions,
+        # ).logits
         #out bertMLM
         # 
         # 
-
-        self.pred_pad = pred_pad
+        pred_pad = exit_logits
+        self.pred_pad = exit_logits
 
         if ys_pad != None:
             # ys_in_pad, ys_out_pad = add_sos_eos(
@@ -539,7 +566,6 @@ class E2E(ASRInterface, torch.nn.Module):
                     control = torch.bernoulli(probability).unsqueeze(-1).to(ys_out_pad.device)
                     predicted_embeds = control * label_embeds + (1 - control) * predicted_embeds
                 else:
-                    print(1)
                     arg_result = torch.argmax(self.decoder.cls(hidden_states),dim=-1)
                     predicted_embeds = self.decoder.bert.embeddings(input_ids=arg_result)
                 hidden_states = self.concat_head(torch.cat([hidden_states, predicted_embeds], dim=-1))

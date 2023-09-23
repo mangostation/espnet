@@ -13,7 +13,7 @@ stop_stage=5
 ngpu=1         # number of gpus ("0" uses cpu, otherwise use gpu)
 dec_ngpu=1
 debugmode=1
-dumpdir=/tmp/dump   # directory to dump full features
+dumpdir=/mnt/disk1/m11115119/espnet/egs/aishell/asr1/dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
 verbose=0      # verbose option
 resume=        # Resume the training from snapshot
@@ -207,14 +207,14 @@ if [ -z ${tag} ]; then
 else
     expname=${train_set}_${backend}_${tag}
 fi
-expdir=exp/${expname}_492
+expdir=exp/${expname}_bertpre
 mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     echo "stage 4: Network Training"
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
         asr_train.py \
-        --enc-init /work/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_BertASR_pre_specaug/results/model.last10.avg.best \
+        --enc-init /mnt/disk1/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_BertASR_pre_specaug/results/model.last10.avg.best \
         --config ${train_config} \
         --preprocess-conf ${preprocess_config} \
         --ngpu ${ngpu} \
@@ -236,20 +236,20 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     echo "stage 5: Decoding"
     nj=32
     max_epoch=130
-    if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *conformer* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *maskctc* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *LASO* ]] || \
-           [[ $(get_yaml.py ${train_config} model-module) = *Bert* ]] || \
-           [[ $(get_yaml.py ${train_config} etype) = custom ]] || \
-           [[ $(get_yaml.py ${train_config} dtype) = custom ]]; then
-        recog_model=model.last${n_average}.avg.best
-        average_checkpoints.py --backend ${backend} \
-        		       --snapshots ${expdir}/results/snapshot.ep.* \
-        		       --out ${expdir}/results/${recog_model} \
-        		       --num ${n_average} \
-                       --max-epoch ${max_epoch}
-    fi
+    # if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *conformer* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *maskctc* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *LASO* ]] || \
+    #        [[ $(get_yaml.py ${train_config} model-module) = *Bert* ]] || \
+    #        [[ $(get_yaml.py ${train_config} etype) = custom ]] || \
+    #        [[ $(get_yaml.py ${train_config} dtype) = custom ]]; then
+    #     recog_model=model.last${n_average}.avg.best
+    #     average_checkpoints.py --backend ${backend} \
+    #     		       --snapshots ${expdir}/results/snapshot.ep.* \
+    #     		       --out ${expdir}/results/${recog_model} \
+    #     		       --num ${n_average} \
+    #                    --max-epoch ${max_epoch}
+    # fi
 
 
     if [[ $(get_yaml.py ${train_config} model-module) = *transducer* ]]; then
@@ -279,7 +279,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
 
         ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
             asr_recog.py \
-            --enc-init /work/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_BertASR_pre_specaug/results/model.last10.avg.best \
+            --enc-init /mnt/disk1/m11115119/espnet/egs/aishell/asr1/exp/train_pytorch_train_BertASR_pre_specaug/results/model.last10.avg.best \
             --config ${decode_config} \
             --ngpu ${ngpu} \
             --backend ${backend} \

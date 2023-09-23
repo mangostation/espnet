@@ -17,7 +17,7 @@ mtlalpha: 0.0
 lsm-weight: 0.1
 
 # minibatch related
-batch-size: 192
+batch-size: 336
 maxlen-in: 512  # if input length  > maxlen-in, batchsize is automatically reduced
 maxlen-out: 60 # if output length > maxlen-out, batchsize is automatically reduced
 
@@ -32,7 +32,7 @@ dropout-rate: 0.1
 
 # transformer specific setting
 backend: pytorch
-model-module: "espnet.nets.pytorch_backend.e2e_asr_BertASR:E2E"
+model-module: "espnet.nets.pytorch_backend.e2e_asr_ELMERASR_pretrain:E2E"
 transformer-input-layer: conv2d     # encoder architecture type
 transformer-lr: 1.0
 transformer-warmup-steps: 12000
